@@ -31,6 +31,8 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
 ))
 
 genius = Genius(GENIUS_ACCESS_TOKEN)
+genius.verbose = False  # Desativa logs verbosos
+genius.remove_section_headers = True  # Remove cabeçalhos de seção
 
 def get_current_track():
     """
@@ -47,8 +49,17 @@ def get_current_track():
 
 def get_lyrics(track_name, artist_name):
     """Busca a letra da música no Genius."""
-    song = genius.search_song(track_name, artist_name)
-    if song:
+    try:
+        print(f"Buscando: {track_name} - {artist_name}")  # Debug
+        song = genius.search_song(track_name, artist_name)
+        if song is None:
+            print("Música não encontrada no Genius")  # Debug
+            return "Letra não encontrada."
+
+        if not hasattr(song, 'lyrics') or not song.lyrics:
+            print("Música encontrada, mas sem letra")  # Debug
+            return "Letra não encontrada."
+
         lyrics = song.lyrics
         # Remove a primeira linha que contém informações extras
         if '\n' in lyrics:
@@ -58,7 +69,10 @@ def get_lyrics(track_name, artist_name):
         import re
         lyrics = re.sub(r'\d+Embed$', '', lyrics)
         return lyrics
-    return "Letra não encontrada."
+    except Exception as e:
+        print(f"Erro ao buscar letra: {str(e)}")  # Debug
+        return "Letra não encontrada."
+
 
 if __name__ == "__main__":
     track, artist = get_current_track()
