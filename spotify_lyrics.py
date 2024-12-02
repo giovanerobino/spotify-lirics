@@ -49,7 +49,15 @@ def get_lyrics(track_name, artist_name):
     """Busca a letra da música no Genius."""
     song = genius.search_song(track_name, artist_name)
     if song:
-        return song.lyrics
+        lyrics = song.lyrics
+        # Remove a primeira linha que contém informações extras
+        if '\n' in lyrics:
+            lyrics = lyrics.split('\n', 1)[1]
+        # Remove o número e "Embed" do final da letra
+        lyrics = lyrics.strip()
+        import re
+        lyrics = re.sub(r'\d+Embed$', '', lyrics)
+        return lyrics
     return "Letra não encontrada."
 
 if __name__ == "__main__":
