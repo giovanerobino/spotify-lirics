@@ -4,82 +4,90 @@ Script para buscar a letra da música tocando no momento no Spotify e exibir na 
 
 Dependências:
 - spotipy
-- lyricsgenius
+- BeautifulSoup
 """
 import os
-from dotenv import load_dotenv
+import requests
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from lyricsgenius import Genius
+from bs4 import BeautifulSoup
 
-load_dotenv()
+# Configurações das credenciais
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+GENIUS_ACCESS_TOKEN = os.getenv("GENIUS_ACCESS_TOKEN")
 
-# Configurações do Spotify
-SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID') #'seu_spotify_client_id'
-SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET') #'seu_spotify_client_secret'
-SPOTIFY_REDIRECT_URI = 'http://localhost:8888/callback'  # Pode ser alterado
-
-# Configurações do Genius
-GENIUS_ACCESS_TOKEN = os.getenv('GENIUS_ACCESS_TOKEN') #'seu_genius_access_token'
-
-# Inicializar Spotify e Genius
+# Autenticação no Spotify
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     client_id=SPOTIFY_CLIENT_ID,
     client_secret=SPOTIFY_CLIENT_SECRET,
-    redirect_uri=SPOTIFY_REDIRECT_URI,
-    scope="user-read-playback-state"
+    redirect_uri="http://localhost:8888/callback",
+    scope="user-read-currently-playing"
 ))
 
-genius = Genius(GENIUS_ACCESS_TOKEN)
-genius.verbose = False  # Desativa logs verbosos
-genius.remove_section_headers = True  # Remove cabeçalhos de seção
-
 def get_current_track():
-    """
-    Obtém a música que está sendo ouvida no Spotify.
-    Nota: O spotify precisa estar tocando no browser
-    """
-    current_track = sp.current_playback()
+    """Obtém a faixa que está tocando no momento no Spotify."""
+    current_track = sp.currently_playing()
     if current_track and current_track['is_playing']:
-        track_name = current_track['item']['name']
-        artist_name = current_track['item']['artists'][0]['name']
-        return track_name, artist_name
-    else:
-        return None, None
+        artist = current_track['item']['artists'][0]['name']
+        track = current_track['item']['name']
+        return artist, track
+    return None, None
 
-def get_lyrics(track_name, artist_name):
-    """Busca a letra da música no Genius."""
-    try:
-        print(f"Buscando: {track_name} - {artist_name}")  # Debug
-        song = genius.search_song(track_name, artist_name)
-        if song is None:
-            print("Música não encontrada no Genius")  # Debug
-            return "Letra não encontrada."
+def get_lyrics(artist, track):
+    """Obtém a letra da música através do Genius."""
+    search_url = "https://api.genius.com/search"
+    headers = {"Authorization": f"Bearer {GENIUS_ACCESS_TOKEN}"}
+    params = {"q": f"{artist} {track}"}
+    response = requests.get(search_url, headers=headers, params=params, timeout=10)
 
-        if not hasattr(song, 'lyrics') or not song.lyrics:
-            print("Música encontrada, mas sem letra")  # Debug
-            return "Letra não encontrada."
+    if response.status_code != 200:
+        return "Erro ao buscar música no Genius."
 
-        lyrics = song.lyrics
-        # Remove a primeira linha que contém informações extras
-        if '\n' in lyrics:
-            lyrics = lyrics.split('\n', 1)[1]
-        # Remove o número e "Embed" do final da letra
-        lyrics = lyrics.strip()
-        import re
-        lyrics = re.sub(r'\d+Embed$', '', lyrics)
-        return lyrics
-    except Exception as e:
-        print(f"Erro ao buscar letra: {str(e)}")  # Debug
+    json_data = response.json()
+    hits = json_data['response']['hits']
+    if not hits:
         return "Letra não encontrada."
 
+    # Melhorando a precisão na escolha da música correta
+    for hit in hits:
+        if artist.lower() in hit['result']['primary_artist']['name'].lower():
+            song_url = hit['result']['url']
+            return scrape_lyrics(song_url)
 
-if __name__ == "__main__":
-    track, artist = get_current_track()
-    if track and artist:
-        print(f"Tocando agora: {track} - {artist}")
-        lyrics = get_lyrics(track, artist)
-        print("\nLetra da música:\n")
+    return "Letra não encontrada."
+
+def scrape_lyrics(url):
+    """Faz o scraping da letra da música a partir do Genius."""
+    response = requests.get(url, timeout=10)
+    if response.status_code != 200:
+        return "Erro ao acessar a página da música."
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Primeira tentativa: usando data-lyrics-container
+    lyrics_divs = soup.find_all("div", attrs={"data-lyrics-container": "true"})
+    if lyrics_divs:
+        lyrics = '\n'.join([div.get_text(separator="\n") for div in lyrics_divs])
+        return lyrics.strip()
+
+    # Segunda tentativa: Estrutura alternativa
+    lyrics_divs = soup.find_all("div", class_=lambda x: x and "Lyrics__Container" in x)
+    if lyrics_divs:
+        lyrics = '\n'.join([line.get_text(separator="\n") for div in lyrics_divs for line in div.find_all("p")])
+        return lyrics.strip()
+
+    return "Letra não encontrada."
+
+def main():
+    """Função principal do script."""
+    artist, track = get_current_track()
+    if artist and track:
+        print(f"Tocando agora: {artist} - {track}\n")
+        lyrics = get_lyrics(artist, track)
         print(lyrics)
     else:
         print("Nenhuma música tocando no momento.")
+
+if __name__ == "__main__":
+    main()
