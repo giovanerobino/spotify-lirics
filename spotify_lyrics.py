@@ -12,6 +12,10 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from bs4 import BeautifulSoup
 
+# carrega os tokens do .env
+from dotenv import load_dotenv
+load_dotenv()
+
 # Configurações das credenciais
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -91,3 +95,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
