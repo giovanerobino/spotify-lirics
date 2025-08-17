@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spotify-lyrics"
+version = "0.1.0"
+description = "Script para obter a música atual do Spotify e letras do Genius"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "spotipy",
+    "beautifulsoup4",
+    "requests",
+    "python-dotenv",
+]
+
+[tool.pyright]
+include = ["."]
+exclude = ["__pycache__", ".venv"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "none"
+reportUnusedImport = "warning"
+reportOptionalMemberAccess = "warning"
+strictListInference = true
+strictDictionaryInference = true
+strictSetInference = true
